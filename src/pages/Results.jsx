@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { getBadge, getScoreColor } from "../utils/helpers";
 
-// ── Animated number counter ──────────────────────────────────
+// ── Animated number counter 
 function useAnimatedNumber(target, duration = 1200) {
   const [val, setVal] = useState(0);
   useEffect(() => {
@@ -20,22 +20,36 @@ function useAnimatedNumber(target, duration = 1200) {
   return val;
 }
 
-// ── Chip ─────────────────────────────────────────────────────
+// ── Chip 
 function Chip({ label, color }) {
-  const styles = {
+  const colorMap = {
     red:    { bg: "rgba(248,113,113,0.07)",  text: "#f87171",  border: "rgba(248,113,113,0.18)" },
     green:  { bg: "rgba(52,211,153,0.07)",   text: "#34d399",  border: "rgba(52,211,153,0.18)" },
     purple: { bg: "rgba(79,142,247,0.08)",   text: "#4f8ef7",  border: "rgba(79,142,247,0.18)" },
     orange: { bg: "rgba(251,191,36,0.07)",   text: "#fbbf24",  border: "rgba(251,191,36,0.18)" },
-  }[color] || styles.purple;
+  };
+
+  const styles = colorMap[color] || colorMap.purple;
+
   return (
-    <span style={{ fontFamily: "'Sora',sans-serif", fontSize: "0.73rem", fontWeight: 600, padding: "4px 11px", borderRadius: 50, border: `1px solid ${styles.border}`, background: styles.bg, color: styles.text }}>
+    <span
+      style={{
+        fontFamily: "'Sora',sans-serif",
+        fontSize: "0.73rem",
+        fontWeight: 600,
+        padding: "4px 11px",
+        borderRadius: 50,
+        border: `1px solid ${styles.border}`,
+        background: styles.bg,
+        color: styles.text
+      }}
+    >
       {label}
     </span>
   );
 }
 
-// ── Badge ────────────────────────────────────────────────────
+// ── Badge 
 function Badge({ label, type }) {
   const styles = {
     green:  { bg: "rgba(52,211,153,0.10)",  text: "#34d399" },
