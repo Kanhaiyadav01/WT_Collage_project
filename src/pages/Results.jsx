@@ -136,7 +136,7 @@ function AccordionSection({ section }) {
   );
 }
 
-// ── Results Page ─────────────────────────────────────────────
+// ── Results Page 
 export default function Results({ user, logout, showToast, aiResult, formData }) {
   const navigate = useNavigate();
   const result = aiResult;
