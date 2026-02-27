@@ -67,13 +67,18 @@ export default function Upload({ user, logout, showToast, setAiResult, setFormDa
     try { resumeText = await extractPDFText(file); }
     catch { resumeText = "[Could not extract PDF text]"; }
 
+    // Warn if extraction returned very little
+    if (resumeText.length < 100 || resumeText.startsWith("Could not") || resumeText.startsWith("Resume text extraction")) {
+      console.warn("PDF extraction returned limited text:", resumeText.slice(0, 200));
+    }
+
     // Call Gemini AI
     let result;
     try {
       result = await analyzeWithGemini(resumeText, jobDesc, jobTitle, company);
     } catch (err) {
       console.error("Gemini error:", err);
-      showToast("⚠️ AI connection issue. Showing smart demo results.", 4000);
+      showToast("⚠️ AI connection issue. Showing estimated results.", 4000);
       result = generateDemoResult(resumeText, jobDesc, jobTitle, company);
     }
 

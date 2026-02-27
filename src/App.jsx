@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState } from "react";
-import { Analytics } from "@vercel/analytics/react"; // ✅ Added
+import { Analytics } from "@vercel/analytics/react";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
