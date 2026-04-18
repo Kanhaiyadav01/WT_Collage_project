@@ -27,11 +27,10 @@ export default function Dashboard({ showToast }) {
           });
           setAnalyses(sorted);
         } else {
-          setError(response.error);
+          console.error("Error fetching analyses:", response.error);
         }
       } catch (err) {
         console.error("Error fetching analyses:", err);
-        setError(err.message);
       } finally {
         setLoading(false);
       }
