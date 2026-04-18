@@ -184,7 +184,7 @@ export default function Results({ showToast, aiResult, formData }) {
     };
 
     saveToDB();
-  }, [result, user, saved]);
+  }, [result, user, saved, formData?.company, formData?.jobTitle]);
 
   useEffect(() => {
     if (!result) return;

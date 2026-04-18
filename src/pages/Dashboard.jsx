@@ -10,7 +10,6 @@ export default function Dashboard({ showToast }) {
   const { user } = useAuth();
   const [analyses, setAnalyses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!user) return;
