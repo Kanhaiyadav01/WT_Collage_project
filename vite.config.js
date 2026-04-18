@@ -11,10 +11,14 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    minify: 'terser',
     rollupOptions: {
       output: {
-        manualChunks: undefined,
+        manualChunks: (id) => {
+          // Chunk pdfjs separately to avoid bundle size issues
+          if (id.includes('pdfjs-dist')) {
+            return 'pdfjs'
+          }
+        },
       },
     },
   },

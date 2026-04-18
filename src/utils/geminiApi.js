@@ -1,7 +1,7 @@
 import * as pdfjsLib from "pdfjs-dist/build/pdf";
-import pdfjsWorker from "pdfjs-dist/build/pdf.worker.entry";
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_KEY || "AIzaSyAKfid0hgZJx0r_0uSEuIwSIJEwC-AvxAg";
 
