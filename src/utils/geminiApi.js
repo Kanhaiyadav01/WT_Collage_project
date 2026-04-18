@@ -1,5 +1,8 @@
-import * as pdfjsLib from "pdfjs-dist/build/pdf";
-import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import * as pdfjsLib from "pdfjs-dist";
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).href;
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
