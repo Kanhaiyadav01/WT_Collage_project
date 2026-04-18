@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 // Vite configuration optimized for Vercel deployment
 export default defineConfig({
   plugins: [react()],
+  envPrefix: ["VITE_", "REACT_APP_"],
   server: {
     port: 5173,
     strictPort: false,

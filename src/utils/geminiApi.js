@@ -1,12 +1,9 @@
-import * as pdfjsLib from "pdfjs-dist";
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).href;
+import * as pdfjsLib from "pdfjs-dist/build/pdf";
+import pdfjsWorkerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
-const GEMINI_API_KEY = process.env.REACT_APP_GEMINI_KEY || "AIzaSyAKfid0hgZJx0r_0uSEuIwSIJEwC-AvxAg";
+const GEMINI_API_KEY = import.meta.env.REACT_APP_GEMINI_KEY;
 
 // ── PDF Text Extraction (using Mozilla pdf.js for accurate parsing) ──
 export async function extractPDFText(file) {
@@ -55,6 +52,10 @@ function calculateKeywordMatch(resumeText, jobDesc) {
 
 // ── Gemini AI Analysis (IMPROVED - FIXES SAME OUTPUT BUG) ──
 export async function analyzeWithGemini(resumeText, jobDesc, jobTitle, company) {
+  if (!GEMINI_API_KEY) {
+    throw new Error("Missing Gemini API key. Set REACT_APP_GEMINI_KEY in environment variables.");
+  }
+
   console.log("[RESUMIND] Extracted resume text length:", resumeText.length);
   console.log("[RESUMIND] Job description length:", jobDesc.length);
   console.log("[RESUMIND] Resume preview:", resumeText.slice(0, 200));
