@@ -31,76 +31,210 @@ export async function extractPDFText(file) {
   }
 }
 
-// ── Gemini AI Analysis 
+// ── Helper: Extract Keywords from Text ──
+function extractKeywords(text) {
+  if (!text) return [];
+  const words = text.toLowerCase().match(/\b[a-z]+(?:\s[a-z]+)?\b/g) || [];
+  const keywords = [...new Set(words)].filter(w => w.length > 3);
+  return keywords.slice(0, 30);
+}
+
+// ── Helper: Calculate Keyword Match Percentage ──
+function calculateKeywordMatch(resumeText, jobDesc) {
+  const resumeKeywords = new Set(extractKeywords(resumeText).map(k => k.toLowerCase()));
+  const jobKeywords = extractKeywords(jobDesc).map(k => k.toLowerCase());
+  
+  if (jobKeywords.length === 0) return 0;
+  
+  const matches = jobKeywords.filter(k => resumeKeywords.has(k)).length;
+  return Math.round((matches / jobKeywords.length) * 100);
+}
+
+// ── Gemini AI Analysis (IMPROVED - FIXES SAME OUTPUT BUG) ──
 export async function analyzeWithGemini(resumeText, jobDesc, jobTitle, company) {
   console.log("[RESUMIND] Extracted resume text length:", resumeText.length);
-  console.log("[RESUMIND] Resume preview:", resumeText.slice(0, 300));
+  console.log("[RESUMIND] Job description length:", jobDesc.length);
+  console.log("[RESUMIND] Resume preview:", resumeText.slice(0, 200));
+  console.log("[RESUMIND] JD preview:", jobDesc.slice(0, 200));
 
-  const prompt = `
-You are an expert ATS (Applicant Tracking System) analyst and career coach.
+  // Calculate keyword match percentage (for scoring reference)
+  const keywordMatchPct = calculateKeywordMatch(resumeText, jobDesc);
+  console.log("[RESUMIND] Keyword match %:", keywordMatchPct);
 
-IMPORTANT INSTRUCTIONS:
-- Analyze the SPECIFIC resume content below against the SPECIFIC job description.
-- Every score MUST reflect the actual content — do NOT use generic/default scores.
-- The missingKeywords MUST be keywords found in the JOB DESCRIPTION but NOT in the RESUME.
-- The suggestedKeywords MUST be relevant to the specific job posting.
-- Every feedbackCard body must reference ACTUAL lines/phrases from the resume.
-- Do NOT produce generic advice. Be specific to THIS resume and THIS job.
+  const prompt = `You are an expert ATS (Applicant Tracking System) analyst, career coach, and technical interviewer.
 
-JOB TITLE: ${jobTitle}
-COMPANY: ${company}
+YOUR TASK: Analyze the provided RESUME against the provided JOB DESCRIPTION and return a detailed JSON report.
 
-RESUME CONTENT:
+CRITICAL INSTRUCTIONS:
+1. EVERY score MUST be dynamically calculated based on the actual resume and job description provided.
+2. DO NOT generate generic or template responses.
+3. DO NOT return identical outputs for different resumes.
+4. Base every statement on SPECIFIC content from the resume and job description.
+5. Reference actual skills, projects, and experiences from the resume.
+6. Compare resume content directly against job requirements.
+
 ---
-${resumeText.slice(0, 5000)}
----
+
+JOB CONTEXT:
+Title: ${jobTitle}
+Company: ${company}
+
+RESUME:
+${resumeText.slice(0, 4000)}
 
 JOB DESCRIPTION:
----
-${jobDesc.slice(0, 3500)}
+${jobDesc.slice(0, 3000)}
+
 ---
 
-Return ONLY valid JSON (no markdown, no backticks) with this exact structure:
+ANALYSIS REQUIREMENTS:
+
+A. TONE & STYLE SECTION:
+- Evaluate resume's professional tone, clarity, and writing quality
+- Check for action verbs, active vs passive voice
+- Rate clarity and conciseness (0-100)
+- Identify 2-3 specific tone issues from the actual resume
+
+B. CONTENT SECTION:
+- Evaluate achievement quantification (numbers, metrics, percentages)
+- Check if accomplishments are specific vs generic
+- Rate relevance of projects to the ${jobTitle} role (0-100)
+- Identify missing quantifiable achievements
+
+C. STRUCTURE SECTION:
+- Evaluate section organization and clarity
+- Check for reverse chronological order in experience
+- Rate formatting consistency (0-100)
+- Check if contact info and key sections are present
+
+D. SKILLS SECTION:
+- Extract technical skills from the resume
+- Compare against required skills in the job description
+- Calculate skill match percentage
+- Identify critical missing skills from the JD
+- Rate skills alignment (0-100)
+
+E. INTERVIEW QUESTIONS:
+Generate 7 interview questions (2 easy, 3 medium, 2 hard):
+- Base questions on actual projects and experiences in the resume
+- Base some questions on specific requirements in the job description
+- Mix of technical and behavioral questions
+- Format: { "question": "...", "difficulty": "easy|medium|hard", "type": "technical|behavioral", "basedOn": "Resume Project Name|JD Requirement" }
+
+---
+
+Return ONLY valid JSON (no markdown, no code blocks) in this exact format:
+
 {
-  "overallScore": <number 0-100 based on actual match quality>,
-  "toneScore": <number 0-100>,
-  "contentScore": <number 0-100>,
-  "structureScore": <number 0-100>,
-  "skillsScore": <number 0-100>,
-  "atsScore": <number 0-100>,
-  "issueCount": <actual number of issues found>,
+  "overallScore": <CALCULATE: average of (toneScore + contentScore + structureScore + skillsScore) / 4, adjusted for relevance to JD>,
+  "toneScore": <0-100: based on actual tone analysis>,
+  "contentScore": <0-100: based on achievement specificity and quantification>,
+  "structureScore": <0-100: based on organization and completeness>,
+  "skillsScore": <0-100: based on skill match with JD>,
+  "atsScore": <0-100: overall ATS friendliness>,
+  "issueCount": <actual number of issues identified>,
   "atsBadgeType": "<good|warn|bad>",
-  "atsChecks": [{ "icon": "<✅|⚠️|❌>", "text": "<specific check referencing actual resume content>" }],
-  "missingKeywords": ["<keyword from JD not in resume>"],
-  "suggestedKeywords": ["<keyword relevant to this specific job>"],
+  "atsChecks": [
+    { "icon": "✅|⚠️|❌", "text": "<specific finding from THIS resume>" },
+    { "icon": "✅|⚠️|❌", "text": "<specific finding from THIS resume>" },
+    { "icon": "✅|⚠️|❌", "text": "<specific finding from THIS resume>" },
+    { "icon": "✅|⚠️|❌", "text": "<specific finding from THIS resume>" },
+    { "icon": "✅|⚠️|❌", "text": "<specific finding from THIS resume>" }
+  ],
+  "missingKeywords": ["<keywords in JD but NOT in resume>", "<keyword>", "<keyword>"],
+  "suggestedKeywords": ["<skills relevant to ${jobTitle}>", "<skill>", "<skill>"],
   "sections": [
     {
       "name": "Tone & Style",
-      "score": <number>,
-      "badge": "<Good Start|Strong|Needs Work|Excellent>",
+      "score": <0-100>,
+      "badge": "<Excellent|Strong|Good Start|Needs Work>",
       "badgeType": "<green|blue|orange|red>",
-      "subChecks": [{ "icon": "<✅|⚠️>", "label": "<specific check>" }],
+      "subChecks": [
+        { "icon": "✅|⚠️", "label": "<specific check from actual resume>" },
+        { "icon": "✅|⚠️", "label": "<specific check from actual resume>" }
+      ],
       "feedbackCards": [
         {
           "type": "<pass|warn|fail>",
-          "title": "<title with emoji>",
-          "body": "<specific explanation referencing resume content>",
-          "bullets": ["<specific actionable bullet>"],
-          "chips": ["<relevant chip>"]
+          "title": "<emoji> <title>",
+          "body": "<SPECIFIC feedback referencing actual resume content>",
+          "bullets": ["<actionable advice>", "<actionable advice>"],
+          "chips": ["<relevant tag>"]
         }
       ]
     },
-    { "name": "Content", "score": 0, "badge": "", "badgeType": "", "subChecks": [], "feedbackCards": [] },
-    { "name": "Structure", "score": 0, "badge": "", "badgeType": "", "subChecks": [], "feedbackCards": [] },
-    { "name": "Skills", "score": 0, "badge": "", "badgeType": "", "subChecks": [], "feedbackCards": [] }
+    {
+      "name": "Content",
+      "score": <0-100: rate achievement specificity>,
+      "badge": "<Excellent|Strong|Good Start|Needs Work>",
+      "badgeType": "<green|blue|orange|red>",
+      "subChecks": [
+        { "icon": "✅|⚠️", "label": "<specific check>" },
+        { "icon": "✅|⚠️", "label": "<specific check>" }
+      ],
+      "feedbackCards": [
+        {
+          "type": "<pass|warn|fail>",
+          "title": "<emoji> <title>",
+          "body": "<SPECIFIC feedback with examples from actual resume>",
+          "bullets": ["<actionable advice>"],
+          "chips": []
+        }
+      ]
+    },
+    {
+      "name": "Structure",
+      "score": <0-100: rate organization>,
+      "badge": "<Excellent|Strong|Good Start|Needs Work>",
+      "badgeType": "<green|blue|orange|red>",
+      "subChecks": [
+        { "icon": "✅|⚠️", "label": "<specific check>" },
+        { "icon": "✅|⚠️", "label": "<specific check>" }
+      ],
+      "feedbackCards": [
+        {
+          "type": "<pass|warn|fail>",
+          "title": "<emoji> <title>",
+          "body": "<SPECIFIC feedback about this resume's structure>",
+          "bullets": ["<actionable advice>"],
+          "chips": []
+        }
+      ]
+    },
+    {
+      "name": "Skills",
+      "score": <0-100: rate skill match with JD>,
+      "badge": "<Excellent|Strong|Good Start|Needs Work>",
+      "badgeType": "<green|blue|orange|red>",
+      "subChecks": [
+        { "icon": "✅|⚠️", "label": "<specific skill check>" },
+        { "icon": "✅|⚠️", "label": "<specific skill check>" }
+      ],
+      "feedbackCards": [
+        {
+          "type": "<pass|warn|fail>",
+          "title": "<emoji> <title>",
+          "body": "<SPECIFIC feedback about skill gaps vs JD requirements>",
+          "bullets": ["<missing skill from JD>", "<missing skill from JD>"],
+          "chips": ["<skill tag>", "<skill tag>"]
+        }
+      ]
+    }
+  ],
+  "interviewQuestions": [
+    {
+      "question": "<Question based on actual resume content or JD requirement>",
+      "difficulty": "easy|medium|hard",
+      "type": "technical|behavioral",
+      "basedOn": "<Resume: Project Name OR JD: Requirement Name>"
+    }
   ]
 }
-Fill in ALL 4 sections fully. Return ONLY the JSON.
-`;
+
+IMPORTANT: Return ONLY the JSON object, no markdown, no explanation.`;
 
   const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
 
-  // Retry logic for transient 429/503 errors
   let lastError;
   for (let attempt = 0; attempt < 3; attempt++) {
     if (attempt > 0) {
@@ -113,7 +247,10 @@ Fill in ALL 4 sections fully. Return ONLY the JSON.
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 4096 },
+        generationConfig: { 
+          temperature: 0.8,  // INCREASED from 0.4 to 0.8 for variation
+          maxOutputTokens: 6000  // Increased for full response
+        },
       }),
     });
 
@@ -133,15 +270,25 @@ Fill in ALL 4 sections fully. Return ONLY the JSON.
     const data = await response.json();
     const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     console.log("[RESUMIND] Raw AI response length:", rawText.length);
-    console.log("[RESUMIND] AI response preview:", rawText.slice(0, 200));
+    console.log("[RESUMIND] AI response preview:", rawText.slice(0, 300));
 
     const cleaned = rawText.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
 
     try {
-      return JSON.parse(cleaned);
+      const result = JSON.parse(cleaned);
+      console.log("[RESUMIND] Analysis parsed successfully");
+      return result;
     } catch {
       const match = cleaned.match(/\{[\s\S]*\}/);
-      if (match) return JSON.parse(match[0]);
+      if (match) {
+        try {
+          const result = JSON.parse(match[0]);
+          console.log("[RESUMIND] Analysis parsed from matched JSON");
+          return result;
+        } catch (innerErr) {
+          console.error("[RESUMIND] Could not parse matched JSON:", innerErr);
+        }
+      }
       console.error("[RESUMIND] Could not parse response:", cleaned.slice(0, 500));
       throw new Error("Could not parse AI response as JSON.");
     }
@@ -150,91 +297,4 @@ Fill in ALL 4 sections fully. Return ONLY the JSON.
   throw lastError || new Error("Gemini API failed after 3 attempts.");
 }
 
-// ── Demo / Fallback Result
-export function generateDemoResult(resumeText, jobDesc, jobTitle, company) {
-  const techKeywords = [
-    "JavaScript","Python","React","Node.js","SQL","AWS","Docker",
-    "TypeScript","API","Git","Agile","Communication","Leadership",
-    "Problem-solving","Teamwork","Project management","Analytics",
-  ];
-  const jdLower = jobDesc.toLowerCase();
-  const resumeLower = resumeText.toLowerCase();
-  const missing = techKeywords.filter(
-    (k) => jdLower.includes(k.toLowerCase()) && !resumeLower.includes(k.toLowerCase())
-  );
-  const suggested = techKeywords.filter((k) => jdLower.includes(k.toLowerCase())).slice(0, 8);
 
-  return {
-    overallScore: 72,
-    toneScore: 65,
-    contentScore: 58,
-    structureScore: 78,
-    skillsScore: 60,
-    atsScore: 72,
-    issueCount: 14,
-    atsBadgeType: "warn",
-    atsChecks: [
-      { icon: "✅", text: "Readable formatting detected — no tables or complex layouts blocking ATS" },
-      { icon: "⚠️", text: "Some keywords from the job description are missing from your resume" },
-      { icon: "⚠️", text: "Skills section needs to be more prominent and specific" },
-      { icon: "✅", text: "Contact information appears to be present" },
-      { icon: "❌", text: "No quantifiable achievements detected — add metrics and numbers" },
-    ],
-    missingKeywords: missing.slice(0, 6).concat(["Stakeholder management", "Cross-functional"]),
-    suggestedKeywords: suggested,
-    sections: [
-      {
-        name: "Tone & Style", score: 65, badge: "Good Start", badgeType: "blue",
-        subChecks: [
-          { icon: "✅", label: "Professional Tone" },
-          { icon: "⚠️", label: "Consistent Voice" },
-          { icon: "⚠️", label: "Active Language" },
-          { icon: "✅", label: "Concise Writing" },
-        ],
-        feedbackCards: [
-          { type: "pass", title: "✅ Professional Tone — Good overall", body: "Your resume maintains a professional tone. Recruiters will find it readable and appropriate for the role.", bullets: [], chips: [] },
-          { type: "warn", title: "⚠️ Use Active Language — Replace passive phrases", body: "Switch from passive to active voice to sound more impactful:", bullets: ['Instead of: "Was responsible for managing..."', 'Try: "Led and managed a team of..."'], chips: ["Led", "Built", "Delivered", "Achieved", "Drove"] },
-        ],
-      },
-      {
-        name: "Content", score: 58, badge: "Needs Work", badgeType: "orange",
-        subChecks: [
-          { icon: "⚠️", label: "Quantify Impact" },
-          { icon: "⚠️", label: "Tailor to Role" },
-          { icon: "✅", label: "Avoid Fluff" },
-          { icon: "⚠️", label: "Action Verbs" },
-        ],
-        feedbackCards: [
-          { type: "warn", title: "⚠️ Quantify Your Impact — Add numbers & metrics", body: "Vague statements are the #1 weakness ATS and recruiters flag:", bullets: ['Instead of: "Managed a team of developers"', 'Try: "Led a team of 5 developers to ship 3 features, reducing load time by 40%"'], chips: [] },
-          { type: "warn", title: "⚠️ Tailor to Role — Add job-specific content", body: `Your resume needs to speak more directly to the ${jobTitle} role at ${company}.`, bullets: ["Add responsibilities that match the JD", "Include specific tools/technologies mentioned"], chips: [] },
-        ],
-      },
-      {
-        name: "Structure", score: 78, badge: "Strong", badgeType: "green",
-        subChecks: [
-          { icon: "✅", label: "Clear Sections" },
-          { icon: "✅", label: "Reverse Chronological" },
-          { icon: "⚠️", label: "Complete Contact Info" },
-          { icon: "✅", label: "Consistent Formatting" },
-        ],
-        feedbackCards: [
-          { type: "pass", title: "✅ Well Structured — Clear section hierarchy", body: "Your resume has clear, logical sections. This is exactly what ATS systems and human recruiters look for.", bullets: [], chips: [] },
-          { type: "warn", title: "⚠️ Complete Contact Info — Add LinkedIn & GitHub", body: "For tech roles, recruiters almost always check LinkedIn and GitHub. Add these to your header.", bullets: [], chips: [] },
-        ],
-      },
-      {
-        name: "Skills", score: 60, badge: "Needs Work", badgeType: "orange",
-        subChecks: [
-          { icon: "⚠️", label: "Job-Matching Keywords" },
-          { icon: "⚠️", label: "Specific Technologies" },
-          { icon: "✅", label: "Relevant Skills Listed" },
-          { icon: "⚠️", label: "No Outdated Technologies" },
-        ],
-        feedbackCards: [
-          { type: "warn", title: "⚠️ Missing Job Keywords — Add role-specific skills", body: "The following skills appear in the job description but are absent from your resume:", bullets: missing.slice(0, 4).map((k) => "Add: " + k), chips: missing.slice(0, 5) },
-          { type: "warn", title: "⚠️ Be Specific — Replace vague skill descriptions", body: "Vague skills hurt your ATS score:", bullets: ['Instead of: "Good communication"', 'Try: "Client communication via Slack, Zoom, and Jira in Agile teams"'], chips: [] },
-        ],
-      },
-    ],
-  };
-}

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import { useAuth } from "../utils/AuthContext";
+import { saveAnalysis } from "../utils/firestoreHelpers";
 import { getBadge, getScoreColor } from "../utils/helpers";
 
 // ── Animated number counter 
@@ -137,11 +139,52 @@ function AccordionSection({ section }) {
 }
 
 // ── Results Page 
-export default function Results({ user, logout, showToast, aiResult, formData }) {
+export default function Results({ showToast, aiResult, formData }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const result = aiResult;
   const displayScore = useAnimatedNumber(result?.overallScore || 0);
   const gaugeRef = useRef(null);
+  const [saved, setSaved] = useState(false);
+
+  // Save analysis to Firestore when result first loads
+  useEffect(() => {
+    if (!result || !user || saved) return;
+    
+    const saveToDB = async () => {
+      try {
+        const analysisData = {
+          resumeName: formData?.jobTitle ? `${formData.jobTitle} at ${formData.company}` : "Resume Analysis",
+          jobTitle: formData?.jobTitle || "",
+          company: formData?.company || "",
+          overallScore: result.overallScore,
+          toneScore: result.toneScore,
+          contentScore: result.contentScore,
+          structureScore: result.structureScore,
+          skillsScore: result.skillsScore,
+          atsScore: result.atsScore,
+          issueCount: result.issueCount,
+          atsBadgeType: result.atsBadgeType,
+          atsChecks: result.atsChecks,
+          missingKeywords: result.missingKeywords,
+          suggestedKeywords: result.suggestedKeywords,
+          sections: result.sections,
+        };
+        
+        const response = await saveAnalysis(user.uid, analysisData);
+        if (response.success) {
+          setSaved(true);
+          console.log("Analysis saved to Firestore:", response.id);
+        } else {
+          console.error("Failed to save analysis:", response.error);
+        }
+      } catch (error) {
+        console.error("Error saving analysis:", error);
+      }
+    };
+
+    saveToDB();
+  }, [result, user, saved]);
 
   useEffect(() => {
     if (!result) return;
@@ -183,7 +226,7 @@ export default function Results({ user, logout, showToast, aiResult, formData })
 
   return (
     <div className="relative z-10 min-h-screen" style={{ animation: "pgFade 0.4s cubic-bezier(0.4,0,0.2,1)" }}>
-      <Navbar user={user} logout={logout} showToast={showToast} variant="results" />
+      <Navbar showToast={showToast} variant="results" />
 
       <div style={{ maxWidth: 840, margin: "0 auto", padding: "0 24px 60px" }}>
         {/* Topbar — back + breadcrumb */}

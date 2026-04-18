@@ -158,7 +158,7 @@ function FeatureCard({ icon, title, desc, gradClass }) {
 }
 
 // ── Home Page ────────────────────────────────────────────────
-export default function Home({ user, logout, showToast }) {
+export default function Home({ showToast }) {
   const navigate = useNavigate();
 
   const grad = "linear-gradient(135deg, #4f8ef7 0%, #8b5cf6 50%, #e879a0 100%)";
@@ -197,8 +197,6 @@ export default function Home({ user, logout, showToast }) {
       style={{ animation: "pgFade 0.4s cubic-bezier(0.4,0,0.2,1)" }}
     >
       <Navbar
-        user={user}
-        logout={logout}
         showToast={showToast}
         variant="home"
       />

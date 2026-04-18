@@ -1,5 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, updateProfile } from "firebase/auth";
+import { auth } from "../utils/firebase";
+import { saveUserProfile } from "../utils/firestoreHelpers";
+import { useAuth } from "../utils/AuthContext";
 import Navbar from "../components/Navbar";
 import FormInput from "../components/FormInput";
 import GoogleIcon from "../components/GoogleIcon";
@@ -11,8 +15,9 @@ import {
   capitalize,
 } from "../utils/helpers";
 
-export default function Signup({ login, showToast, user, logout }) {
+export default function Signup({ showToast }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [form, setForm] = useState({
     first: "",
     last: "",
@@ -22,7 +27,14 @@ export default function Signup({ login, showToast, user, logout }) {
     terms: false,
   });
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
   const strength = getPasswordStrength(form.pass);
+
+  // Redirect if already logged in
+  if (user) {
+    navigate("/upload");
+    return null;
+  }
 
   function update(field, val) {
     setForm((p) => ({ ...p, [field]: val }));
@@ -50,22 +62,73 @@ export default function Signup({ login, showToast, user, logout }) {
     return errs;
   }
 
-  function doSignup() {
+  async function doSignup() {
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
-    const fullName = capitalize(form.first) + " " + capitalize(form.last);
-    login({
-      name: fullName,
-      email: form.email,
-      avatar: form.first.charAt(0).toUpperCase(),
-    });
-    showToast(
-      "🎉 Account created! Welcome to RESUMIND, " +
-        capitalize(form.first) +
-        "!",
-    );
-    setTimeout(() => navigate("/upload"), 1000);
+
+    setLoading(true);
+    try {
+      const fullName = capitalize(form.first) + " " + capitalize(form.last);
+      
+      // Create Firebase account
+      const result = await createUserWithEmailAndPassword(auth, form.email, form.pass);
+      const firebaseUser = result.user;
+
+      // Update profile with display name
+      await updateProfile(firebaseUser, {
+        displayName: fullName,
+      });
+
+      // Save to Firestore
+      await saveUserProfile(firebaseUser.uid, {
+        email: form.email,
+        displayName: fullName,
+        photoURL: "",
+      });
+
+      showToast("🎉 Account created! Welcome to RESUMIND!");
+      setTimeout(() => navigate("/upload"), 1000);
+    } catch (error) {
+      console.error("Signup error:", error);
+      if (error.code === "auth/email-already-in-use") {
+        setErrors({ submit: "This email is already registered. Try logging in." });
+      } else if (error.code === "auth/weak-password") {
+        setErrors({ submit: "Password is too weak. Please use a stronger password." });
+      } else {
+        setErrors({ submit: error.message });
+      }
+      showToast("❌ Signup failed. Please try again.", 3500);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function doGoogleSignup() {
+    setLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Save user profile to Firestore
+      await saveUserProfile(user.uid, {
+        email: user.email,
+        displayName: user.displayName || "",
+        photoURL: user.photoURL || "",
+      });
+
+      showToast("🎉 Account created with Google!");
+      setTimeout(() => navigate("/upload"), 1000);
+    } catch (error) {
+      console.error("Google signup error:", error);
+      if (error.code !== "auth/popup-closed-by-user") {
+        setErrors({ submit: "Google sign-up failed. Please try again." });
+        showToast("❌ Google sign-up failed.", 3500);
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   const cardStyle = {
@@ -93,6 +156,8 @@ export default function Signup({ login, showToast, user, logout }) {
     marginTop: 6,
     transition: "all 0.22s ease",
     boxShadow: "0 0 22px rgba(79,142,247,0.22)",
+    opacity: loading ? 0.6 : 1,
+    pointerEvents: loading ? "none" : "auto",
   };
   const googleBtnStyle = {
     width: "100%",
@@ -110,6 +175,8 @@ export default function Signup({ login, showToast, user, logout }) {
     color: "white",
     cursor: "pointer",
     transition: "all 0.22s ease",
+    opacity: loading ? 0.6 : 1,
+    pointerEvents: loading ? "none" : "auto",
   };
 
   return (
@@ -118,8 +185,6 @@ export default function Signup({ login, showToast, user, logout }) {
       style={{ animation: "pgFade 0.4s cubic-bezier(0.4,0,0.2,1)" }}
     >
       <Navbar
-        user={user}
-        logout={logout}
         showToast={showToast}
         variant="auth"
       />
@@ -175,14 +240,9 @@ export default function Signup({ login, showToast, user, logout }) {
               e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)";
               e.currentTarget.style.background = "#1a1a28";
             }}
-            onClick={() =>
-              showToast(
-                "🔄 Google sign-in coming soon. Use email instead.",
-                2800,
-              )
-            }
+            onClick={doGoogleSignup}
           >
-            <GoogleIcon /> Sign up with Google
+            <GoogleIcon /> {loading ? "Signing up..." : "Sign up with Google"}
           </button>
 
           {/* Divider */}
@@ -213,6 +273,13 @@ export default function Signup({ login, showToast, user, logout }) {
               }}
             />
           </div>
+
+          {/* Error message */}
+          {errors.submit && (
+            <div style={{ padding: "10px 12px", background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.3)", borderRadius: 8, marginBottom: 14, fontSize: "0.82rem", color: "#f87171", fontFamily: "'Sora',sans-serif" }}>
+              {errors.submit}
+            </div>
+          )}
 
           {/* Name row */}
           <div className="grid grid-cols-2 gap-3">
@@ -374,15 +441,19 @@ export default function Signup({ login, showToast, user, logout }) {
             style={authBtnStyle}
             onClick={doSignup}
             onMouseEnter={(e) => {
-              e.currentTarget.style.transform = "translateY(-2px)";
-              e.currentTarget.style.filter = "brightness(1.1)";
+              if (!loading) {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.filter = "brightness(1.1)";
+              }
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "none";
-              e.currentTarget.style.filter = "none";
+              if (!loading) {
+                e.currentTarget.style.transform = "none";
+                e.currentTarget.style.filter = "none";
+              }
             }}
           >
-            Create Account
+            {loading ? "Creating Account..." : "Create Account"}
           </button>
 
           <p

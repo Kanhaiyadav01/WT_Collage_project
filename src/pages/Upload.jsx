@@ -3,9 +3,9 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import FormInput from "../components/FormInput";
 import { getWordCount, getWordCountStatus } from "../utils/helpers";
-import { extractPDFText, analyzeWithGemini, generateDemoResult } from "../utils/geminiApi";
+import { extractPDFText, analyzeWithGemini } from "../utils/geminiApi";
 
-export default function Upload({ user, logout, showToast, setAiResult, setFormData }) {
+export default function Upload({ showToast, setAiResult, setFormData }) {
   const navigate = useNavigate();
   const [company, setCompany] = useState("");
   const [jobTitle, setJobTitle] = useState("");
@@ -78,8 +78,9 @@ export default function Upload({ user, logout, showToast, setAiResult, setFormDa
       result = await analyzeWithGemini(resumeText, jobDesc, jobTitle, company);
     } catch (err) {
       console.error("Gemini error:", err);
-      showToast("⚠️ AI connection issue. Showing estimated results.", 4000);
-      result = generateDemoResult(resumeText, jobDesc, jobTitle, company);
+      showToast("❌ Analysis failed: " + (err.message || "Please try again"), 4000);
+      navigate("/upload");
+      return;
     }
 
     setAiResult(result);
@@ -93,7 +94,7 @@ export default function Upload({ user, logout, showToast, setAiResult, setFormDa
 
   return (
     <div className="relative z-10 min-h-screen" style={{ animation: "pgFade 0.4s cubic-bezier(0.4,0,0.2,1)" }}>
-      <Navbar user={user} logout={logout} showToast={showToast} variant="upload" />
+      <Navbar showToast={showToast} variant="upload" />
 
       <div style={{ maxWidth: 700, margin: "0 auto", padding: "0 20px 60px" }}>
         {/* Hero */}

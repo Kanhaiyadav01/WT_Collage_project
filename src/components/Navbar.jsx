@@ -1,14 +1,16 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { signOut } from "firebase/auth";
+import { auth } from "../utils/firebase";
+import { useAuth } from "../utils/AuthContext";
 import Logo from "./Logo";
 
-// Navbar component — handles scroll effect + mobile menu + user pill
-export default function Navbar({ user, logout, showToast, variant = "home" }) {
+export default function Navbar({ showToast, variant = "home" }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // Scroll effect — darken navbar on scroll
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener("scroll", handleScroll);
@@ -22,10 +24,15 @@ export default function Navbar({ user, logout, showToast, variant = "home" }) {
     }, 100);
   }
 
-  function handleLogout() {
-    logout();
-    showToast("👋 Signed out successfully.");
-    navigate("/");
+  async function handleLogout() {
+    try {
+      await signOut(auth);
+      showToast("👋 Signed out successfully.");
+      navigate("/");
+    } catch (error) {
+      console.error("Logout error:", error);
+      showToast("❌ Logout failed.", 3500);
+    }
   }
 
   const navbarStyle = {
@@ -104,13 +111,16 @@ export default function Navbar({ user, logout, showToast, variant = "home" }) {
           {variant === "upload" && (
             <>
               {user ? (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: "rgba(79,142,247,0.07)", border: "1px solid rgba(79,142,247,0.16)" }}>
-                  <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-xs font-bold" style={{ background: "linear-gradient(135deg, #4f8ef7, #8b5cf6)" }}>
-                    {user.avatar}
+                <>
+                  <button style={ghostBtn} onClick={() => navigate("/dashboard")}>My Analyses</button>
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg" style={{ background: "rgba(79,142,247,0.07)", border: "1px solid rgba(79,142,247,0.16)" }}>
+                    <div className="w-6 h-6 rounded-md flex items-center justify-center text-white text-xs font-bold" style={{ background: "linear-gradient(135deg, #4f8ef7, #8b5cf6)" }}>
+                      {user.displayName?.charAt(0).toUpperCase() || user.email?.charAt(0).toUpperCase() || "U"}
+                    </div>
+                    <span style={{ fontFamily: "'Sora', sans-serif", fontSize: "0.83rem", color: "white" }}>{user.displayName?.split(" ")[0] || user.email?.split("@")[0]}</span>
+                    <button style={{ ...ghostBtn, padding: "4px 11px", fontSize: "0.77rem" }} onClick={handleLogout}>Sign Out</button>
                   </div>
-                  <span style={{ fontFamily: "'Sora', sans-serif", fontSize: "0.83rem", color: "white" }}>{user.name.split(" ")[0]}</span>
-                  <button style={{ ...ghostBtn, padding: "4px 11px", fontSize: "0.77rem" }} onClick={handleLogout}>Sign Out</button>
-                </div>
+                </>
               ) : (
                 <button style={ghostBtn} onClick={() => navigate("/login")}>Sign In</button>
               )}
@@ -121,8 +131,17 @@ export default function Navbar({ user, logout, showToast, variant = "home" }) {
           {/* Home variant */}
           {variant === "home" && (
             <>
-              <button style={ghostBtn} onClick={() => navigate("/login")}>Sign In</button>
-              <button style={ctaBtn} onClick={() => navigate("/upload")}>Upload Resume</button>
+              {user ? (
+                <>
+                  <button style={ghostBtn} onClick={() => navigate("/dashboard")}>My Analyses</button>
+                  <button style={ghostBtn} onClick={handleLogout}>Sign Out</button>
+                </>
+              ) : (
+                <>
+                  <button style={ghostBtn} onClick={() => navigate("/login")}>Sign In</button>
+                  <button style={ctaBtn} onClick={() => navigate("/upload")}>Upload Resume</button>
+                </>
+              )}
             </>
           )}
 
