@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   createUserWithEmailAndPassword,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   GoogleAuthProvider,
   updateProfile,
 } from "firebase/auth";
@@ -36,47 +35,11 @@ export default function Signup({ showToast }) {
   const [loading, setLoading] = useState(false);
   const strength = getPasswordStrength(form.pass);
 
-  useEffect(() => {
-    if (user) {
-      navigate("/upload");
-    }
-  }, [user, navigate]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function handleGoogleRedirectResult() {
-      try {
-        const result = await getRedirectResult(auth);
-        if (!result?.user || !isMounted) return;
-
-        const redirectedUser = result.user;
-        await saveUserProfile(redirectedUser.uid, {
-          email: redirectedUser.email,
-          displayName: redirectedUser.displayName || "",
-          photoURL: redirectedUser.photoURL || "",
-        });
-
-        showToast("🎉 Account created with Google!");
-        navigate("/upload");
-      } catch (error) {
-        if (!isMounted) return;
-        console.error("Google redirect signup error:", error);
-        setErrors({ submit: "Google sign-up failed. Please try again." });
-        showToast("❌ Google sign-up failed.", 3500);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    handleGoogleRedirectResult();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [navigate, showToast]);
+  // Redirect if already logged in
+  if (user) {
+    navigate("/upload");
+    return null;
+  }
 
   function update(field, val) {
     setForm((p) => ({ ...p, [field]: val }));
@@ -150,11 +113,25 @@ export default function Signup({ showToast }) {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Save user profile to Firestore
+      await saveUserProfile(user.uid, {
+        email: user.email,
+        displayName: user.displayName || "",
+        photoURL: user.photoURL || "",
+      });
+
+      showToast("🎉 Account created with Google!");
+      setTimeout(() => navigate("/upload"), 1000);
     } catch (error) {
       console.error("Google signup error:", error);
-      setErrors({ submit: "Google sign-up failed. Please try again." });
-      showToast("❌ Google sign-up failed.", 3500);
+      if (error.code !== "auth/popup-closed-by-user") {
+        setErrors({ submit: "Google sign-up failed. Please try again." });
+        showToast("❌ Google sign-up failed.", 3500);
+      }
+    } finally {
       setLoading(false);
     }
   }

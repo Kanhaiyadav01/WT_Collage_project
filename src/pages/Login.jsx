@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   signInWithEmailAndPassword,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   GoogleAuthProvider,
 } from "firebase/auth";
 import { auth } from "../utils/firebase";
@@ -23,47 +22,11 @@ export default function Login({ showToast }) {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (user) {
-      navigate("/upload");
-    }
-  }, [user, navigate]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function handleGoogleRedirectResult() {
-      try {
-        const result = await getRedirectResult(auth);
-        if (!result?.user || !isMounted) return;
-
-        const redirectedUser = result.user;
-        await saveUserProfile(redirectedUser.uid, {
-          email: redirectedUser.email,
-          displayName: redirectedUser.displayName || "",
-          photoURL: redirectedUser.photoURL || "",
-        });
-
-        showToast("✅ Welcome back!");
-        navigate("/upload");
-      } catch (error) {
-        if (!isMounted) return;
-        console.error("Google redirect login error:", error);
-        setErrors({ submit: "Google sign-in failed. Please try again." });
-        showToast("❌ Google sign-in failed.", 3500);
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    handleGoogleRedirectResult();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [navigate, showToast]);
+  // Redirect if already logged in
+  if (user) {
+    navigate("/upload");
+    return null;
+  }
 
   function validate() {
     const errs = {};
@@ -103,11 +66,25 @@ export default function Login({ showToast }) {
     setLoading(true);
     try {
       const provider = new GoogleAuthProvider();
-      await signInWithRedirect(auth, provider);
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      // Save user profile to Firestore if first login
+      await saveUserProfile(user.uid, {
+        email: user.email,
+        displayName: user.displayName || "",
+        photoURL: user.photoURL || "",
+      });
+
+      showToast("✅ Welcome back!");
+      setTimeout(() => navigate("/upload"), 600);
     } catch (error) {
       console.error("Google login error:", error);
-      setErrors({ submit: "Google sign-in failed. Please try again." });
-      showToast("❌ Google sign-in failed.", 3500);
+      if (error.code !== "auth/popup-closed-by-user") {
+        setErrors({ submit: "Google sign-in failed. Please try again." });
+        showToast("❌ Google sign-in failed.", 3500);
+      }
+    } finally {
       setLoading(false);
     }
   }
