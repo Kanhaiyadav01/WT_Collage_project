@@ -2,7 +2,7 @@
 
 A **production-ready** AI Resume Analyzer web application that helps job seekers optimize their resumes using **Google Gemini AI**, **Firebase Authentication**, and **Firestore Database**.
 
-**Live Demo**: https://ai-resumereview-llhp.vercel.app
+**Live Demo**: https://wt-collage-project.vercel.app/
 
 ---
 
